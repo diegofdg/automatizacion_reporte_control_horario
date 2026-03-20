@@ -16,7 +16,7 @@ def calcular_kpis(grupo, total, horas_min):
     'promedio': promedio,
     'max_dia': max_dia,
     'min_dia': min_dia,
-    'cumplimiento_pct': f"{cumplimiento * 100:.0f}%"
+    'cumplimiento_pct': cumplimiento
   }
 
 
