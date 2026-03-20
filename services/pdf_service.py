@@ -8,79 +8,51 @@ from docx2pdf import convert
 
 from config import PLANTILLA
 
-
-# =========================
-# ⚙️ CONFIG
-# =========================
-
-DEBUG_DOCX = True  # guarda docx si falla
-
-
-# =========================
-# 🧰 HELPERS
-# =========================
+DEBUG_DOCX = True
 
 def crear_doc_temp():
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-    path = tmp.name
-    tmp.close()
-    return path
+  tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+  path = tmp.name
+  tmp.close()
+  return path
 
 
 def agregar_graficos(doc, context, graficos):
-    """
-    Inserta gráficos dinámicamente en el contexto:
-    grafico1, grafico2, etc.
-    """
-    for i, graf in enumerate(graficos, start=1):
-        if graf and os.path.exists(graf):
-            context[f'grafico{i}'] = InlineImage(doc, graf, width=Mm(150))
-        else:
-            context[f'grafico{i}'] = ""
-
-
-# =========================
-# 📄 GENERADOR PDF
-# =========================
+  """
+  Inserta gráficos dinámicamente en el contexto:
+  grafico1, grafico2, etc.
+  """
+  for i, graf in enumerate(graficos, start=1):
+    if graf and os.path.exists(graf):
+      context[f'grafico{i}'] = InlineImage(doc, graf, width=Mm(150))
+    else:
+      context[f'grafico{i}'] = ""
 
 def generar_pdf(context, ruta_pdf, *graficos):
-    temp_docx = crear_doc_temp()
+  temp_docx = crear_doc_temp()
 
-    try:
-        # 🧠 copiar contexto (evita efectos secundarios)
-        context = context.copy()
+  try:
+    context = context.copy()
+    doc = DocxTemplate(PLANTILLA)
+    agregar_graficos(doc, context, graficos)
+    doc.render(context)
+    doc.save(temp_docx)
+    convert(temp_docx, ruta_pdf)
 
-        doc = DocxTemplate(PLANTILLA)
+    logging.info(f"PDF generado: {ruta_pdf}")
 
-        # 📊 insertar gráficos dinámicamente
-        agregar_graficos(doc, context, graficos)
+  except Exception as e:
+    logging.error(f"Error generando PDF: {ruta_pdf}", exc_info=True)
 
-        # 🧾 renderizar
-        doc.render(context)
+    if DEBUG_DOCX:
+      debug_path = ruta_pdf.replace(".pdf", "_DEBUG.docx")
+      try:
+        doc.save(debug_path)
+        logging.info(f"DOCX debug guardado: {debug_path}")
+      except:
+        logging.error("No se pudo guardar DOCX de debug")
+    raise e
 
-        # 📝 guardar docx temporal
-        doc.save(temp_docx)
-
-        # 📄 convertir a PDF
-        convert(temp_docx, ruta_pdf)
-
-        logging.info(f"PDF generado: {ruta_pdf}")
-
-    except Exception as e:
-        logging.error(f"Error generando PDF: {ruta_pdf}", exc_info=True)
-
-        # 🧪 guardar docx para debug
-        if DEBUG_DOCX:
-            debug_path = ruta_pdf.replace(".pdf", "_DEBUG.docx")
-            try:
-                doc.save(debug_path)
-                logging.info(f"DOCX debug guardado: {debug_path}")
-            except:
-                logging.error("No se pudo guardar DOCX de debug")
-
-        raise e
-
-    finally:
-        # 🧹 limpiar archivo temporal
-        if os.path.exists(temp_docx):
-            os.remove(temp_docx)
+  finally:
+    if os.path.exists(temp_docx):
+      os.remove(temp_docx)

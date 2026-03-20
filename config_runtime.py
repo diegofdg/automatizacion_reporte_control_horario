@@ -17,7 +17,11 @@ def cargar_config():
     return DEFAULT_CONFIG.copy()
 
   with open(CONFIG_PATH, "r") as f:
-    return json.load(f)
+    config = json.load(f)
+  
+  for k, v in DEFAULT_CONFIG.items():
+    config.setdefault(k, v)
+  return config
 
 def guardar_config(config):
   with open(CONFIG_PATH, "w") as f:

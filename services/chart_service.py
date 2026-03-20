@@ -4,281 +4,244 @@ import pandas as pd
 
 from utils.text_utils import es_falta
 
-# =========================
-# 🧰 HELPERS
-# =========================
-
 def crear_temp_png():
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    path = tmp.name
-    tmp.close()
-    return path
+  tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+  path = tmp.name
+  tmp.close()
+  return path
 
 
 def a_horas(series):
-    return series.dt.total_seconds() / 3600
+  return series.dt.total_seconds() / 3600
 
 
 def calcular_objetivo(grupo, divisor):
-    if grupo.empty:
-        return 0
-    horas_min = grupo['Horas minimas'].iloc[0]
-    return horas_min.total_seconds() / 3600 / divisor
+  if grupo.empty:
+    return 0
+  horas_min = grupo['Horas minimas'].iloc[0]
+  return horas_min.total_seconds() / 3600 / divisor
 
 
 def preparar_df(grupo, eliminar_ceros=True):
-    df = grupo.copy()
-    df = df.sort_values('Día')
+  df = grupo.copy()
+  df = df.sort_values('Día')
 
-    if eliminar_ceros:
-        df = df[df['Trabajó'] > pd.Timedelta(0)]
+  if eliminar_ceros:
+    df = df[df['Trabajó'] > pd.Timedelta(0)]
 
-    return df
-
-
-# =========================
-# 📊 GRAFICO LINEA (principal)
-# =========================
+  return df
 
 def grafico_linea(grupo):
-    df = preparar_df(grupo)
+  df = preparar_df(grupo)
 
-    if df.empty:
-        return None
+  if df.empty:
+    return None
 
-    horas = a_horas(df['Trabajó'])
-    objetivo = calcular_objetivo(grupo, 20)
+  horas = a_horas(df['Trabajó'])
+  objetivo = calcular_objetivo(grupo, 20)
 
-    faltas_mask = df['Detalle'].apply(es_falta)
+  faltas_mask = df['Detalle'].apply(es_falta)
 
-    path = crear_temp_png()
+  path = crear_temp_png()
 
-    plt.figure()
+  plt.figure()
 
-    plt.plot(df['Día'].dt.strftime('%d/%m'), horas, marker='o')
+  plt.plot(df['Día'].dt.strftime('%d/%m'), horas, marker='o')
 
-    plt.scatter(
-        df['Día'][faltas_mask].dt.strftime('%d/%m'),
-        horas[faltas_mask],
-        color='red'
-    )
+  plt.scatter(
+    df['Día'][faltas_mask].dt.strftime('%d/%m'),
+    horas[faltas_mask],
+    color='red'
+  )
 
-    plt.axhline(y=objetivo, linestyle='--', label=f'Objetivo ({objetivo:.1f}h)')
-    plt.legend()
+  plt.axhline(y=objetivo, linestyle='--', label=f'Objetivo ({objetivo:.1f}h)')
+  plt.legend()
 
-    plt.title("Horas trabajadas por día")
-    plt.ylabel("Horas")
-    plt.xticks(rotation=45)
+  plt.title("Horas trabajadas por día")
+  plt.ylabel("Horas")
+  plt.xticks(rotation=45)
 
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
+  plt.tight_layout()
+  plt.savefig(path)
+  plt.close()
 
-    return path
-
-
-# =========================
-# 📊 GRAFICO SEMANA (promedio)
-# =========================
+  return path
 
 dias_map = {
-    'Monday': 'Lunes',
-    'Tuesday': 'Martes',
-    'Wednesday': 'Miércoles',
-    'Thursday': 'Jueves',
-    'Friday': 'Viernes'
+  'Monday': 'Lunes',
+  'Tuesday': 'Martes',
+  'Wednesday': 'Miércoles',
+  'Thursday': 'Jueves',
+  'Friday': 'Viernes'
 }
 
 orden_dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
 
-
 def grafico_semana_pro(grupo):
-    df = preparar_df(grupo)
+  df = preparar_df(grupo)
 
-    if df.empty:
-        return None
+  if df.empty:
+    return None
 
-    df['dia_semana'] = df['Día'].dt.day_name().map(dias_map)
+  df['dia_semana'] = df['Día'].dt.day_name().map(dias_map)
 
-    resumen = (
-        df.groupby('dia_semana')['Trabajó']
-        .mean()
-        .reindex(orden_dias)
-        .fillna(pd.Timedelta(0))
-    )
+  resumen = (
+    df.groupby('dia_semana')['Trabajó']
+    .mean()
+    .reindex(orden_dias)
+    .fillna(pd.Timedelta(0))
+  )
 
-    horas = a_horas(resumen)
-    objetivo = calcular_objetivo(grupo, 20)
+  horas = a_horas(resumen)
+  objetivo = calcular_objetivo(grupo, 20)
 
-    path = crear_temp_png()
+  path = crear_temp_png()
 
-    plt.figure()
+  plt.figure()
 
-    plt.bar(resumen.index, horas)
+  plt.bar(resumen.index, horas)
 
-    plt.axhline(y=objetivo, linestyle='--', label=f'Objetivo ({objetivo:.1f}h)')
-    plt.legend()
+  plt.axhline(y=objetivo, linestyle='--', label=f'Objetivo ({objetivo:.1f}h)')
+  plt.legend()
 
-    plt.title("Promedio por día de la semana")
-    plt.ylabel("Horas")
-    plt.xticks(rotation=45)
+  plt.title("Promedio por día de la semana")
+  plt.ylabel("Horas")
+  plt.xticks(rotation=45)
 
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
+  plt.tight_layout()
+  plt.savefig(path)
+  plt.close()
 
-    return path
-
-
-# =========================
-# 📊 HISTOGRAMA
-# =========================
+  return path
 
 def grafico_histograma(grupo):
-    df = preparar_df(grupo)
+  df = preparar_df(grupo)
 
-    if df.empty:
-        return None
+  if df.empty:
+    return None
 
-    horas = a_horas(df['Trabajó'])
+  horas = a_horas(df['Trabajó'])
 
-    path = crear_temp_png()
+  path = crear_temp_png()
 
-    plt.figure()
+  plt.figure()
 
-    plt.hist(horas, bins=10)
+  plt.hist(horas, bins=10)
 
-    plt.title("Distribución de horas trabajadas")
-    plt.xlabel("Horas")
-    plt.ylabel("Frecuencia")
+  plt.title("Distribución de horas trabajadas")
+  plt.xlabel("Horas")
+  plt.ylabel("Frecuencia")
 
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
+  plt.tight_layout()
+  plt.savefig(path)
+  plt.close()
 
-    return path
-
-
-# =========================
-# 📊 BOXPLOT
-# =========================
+  return path
 
 def grafico_boxplot(grupo):
-    df = preparar_df(grupo)
+  df = preparar_df(grupo)
 
-    if df.empty:
-        return None
+  if df.empty:
+    return None
 
-    horas = a_horas(df['Trabajó'])
+  horas = a_horas(df['Trabajó'])
 
-    path = crear_temp_png()
+  path = crear_temp_png()
 
-    plt.figure()
+  plt.figure()
 
-    plt.boxplot(horas, vert=False)
+  plt.boxplot(horas, vert=False)
 
-    plt.title("Distribución de horas trabajadas")
+  plt.title("Distribución de horas trabajadas")
 
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
+  plt.tight_layout()
+  plt.savefig(path)
+  plt.close()
 
-    return path
-
-
-# =========================
-# 📊 CUMPLIMIENTO PRO
-# =========================
+  return path
 
 def grafico_cumplimiento_pro(cumplimiento):
-    valor = cumplimiento * 100
+  valor = cumplimiento * 100
 
-    path = crear_temp_png()
+  path = crear_temp_png()
 
-    plt.figure()
+  plt.figure()
 
-    if valor < 90:
-        color = 'red'
-    elif valor <= 100:
-        color = 'orange'
-    else:
-        color = 'green'
+  if valor < 90:
+    color = 'red'
+  elif valor <= 100:
+    color = 'orange'
+  else:
+    color = 'green'
 
-    plt.barh(['Cumplimiento'], [valor], color=color)
+  plt.barh(['Cumplimiento'], [valor], color=color)
 
-    plt.xlim(0, 120)
-    plt.title(f"{valor:.1f}%")
+  plt.xlim(0, 120)
+  plt.title(f"{valor:.1f}%")
 
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
+  plt.tight_layout()
+  plt.savefig(path)
+  plt.close()
 
-    return path
-
-
-# =========================
-# 📊 GRAFICO SEMANAL (CALENDARIO REAL)
-# =========================
+  return path
 
 def grafico_semanal(grupo):
-    df = grupo.copy()
-    df['Día'] = pd.to_datetime(df['Día'])
+  df = grupo.copy()
+  df['Día'] = pd.to_datetime(df['Día'])
 
-    # 📅 calendario completo del mes
-    primer_dia = df['Día'].min().replace(day=1)
-    ultimo_dia = primer_dia + pd.offsets.MonthEnd(0)
+  primer_dia = df['Día'].min().replace(day=1)
+  ultimo_dia = primer_dia + pd.offsets.MonthEnd(0)
 
-    calendario = pd.DataFrame({
-        'Día': pd.date_range(primer_dia, ultimo_dia, freq='D')
-    })
+  calendario = pd.DataFrame({
+    'Día': pd.date_range(primer_dia, ultimo_dia, freq='D')
+  })
 
-    df['horas'] = a_horas(df['Trabajó'])
+  df['horas'] = a_horas(df['Trabajó'])
 
-    df = calendario.merge(df[['Día', 'horas']], on='Día', how='left')
-    df['horas'] = df['horas'].fillna(0)
+  df = calendario.merge(df[['Día', 'horas']], on='Día', how='left')
+  df['horas'] = df['horas'].fillna(0)
 
-    # 🧠 semanas custom
-    def calcular_semana(fecha):
-        delta = (fecha - primer_dia).days
-        offset = primer_dia.weekday()
-        primer_tramo = 6 - offset
+  def calcular_semana(fecha):
+    delta = (fecha - primer_dia).days
+    offset = primer_dia.weekday()
+    primer_tramo = 6 - offset
 
-        if delta <= primer_tramo:
-            return 0
-        return 1 + (delta - primer_tramo - 1) // 7
+    if delta <= primer_tramo:
+      return 0
+    return 1 + (delta - primer_tramo - 1) // 7
 
-    df['semana'] = df['Día'].apply(calcular_semana)
+  df['semana'] = df['Día'].apply(calcular_semana)
 
-    resumen = df.groupby('semana').agg({
-        'horas': 'sum',
-        'Día': ['min', 'max']
-    })
+  resumen = df.groupby('semana').agg({
+    'horas': 'sum',
+    'Día': ['min', 'max']
+  })
 
-    resumen.columns = ['horas', 'fecha_inicio', 'fecha_fin']
+  resumen.columns = ['horas', 'fecha_inicio', 'fecha_fin']
 
-    resumen['label'] = resumen.apply(
-        lambda x: f"{x['fecha_inicio'].strftime('%d')}–{x['fecha_fin'].strftime('%d')}",
-        axis=1
-    )
+  resumen['label'] = resumen.apply(
+    lambda x: f"{x['fecha_inicio'].strftime('%d')}–{x['fecha_fin'].strftime('%d')}",
+    axis=1
+  )
 
-    objetivo = calcular_objetivo(grupo, 4)
+  objetivo = calcular_objetivo(grupo, 4)
 
-    path = crear_temp_png()
+  path = crear_temp_png()
 
-    plt.figure()
+  plt.figure()
 
-    plt.bar(resumen['label'], resumen['horas'])
+  plt.bar(resumen['label'], resumen['horas'])
 
-    plt.axhline(y=objetivo, linestyle='--', label=f'Objetivo ({objetivo:.1f}h)')
+  plt.axhline(y=objetivo, linestyle='--', label=f'Objetivo ({objetivo:.1f}h)')
 
-    plt.title("Horas trabajadas por semana")
-    plt.ylabel("Horas")
-    plt.xticks(rotation=45)
+  plt.title("Horas trabajadas por semana")
+  plt.ylabel("Horas")
+  plt.xticks(rotation=45)
 
-    plt.legend()
+  plt.legend()
 
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
+  plt.tight_layout()
+  plt.savefig(path)
+  plt.close()
 
-    return path
+  return path
