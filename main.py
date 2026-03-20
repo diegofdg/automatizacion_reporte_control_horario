@@ -4,7 +4,7 @@ import datetime
 import logging
 import traceback
 
-from config import PATH_OUTPUTS, ROJO, VERDE, PERIODO, GENERAR_GRAFICOS
+from config import PATH_OUTPUTS, ROJO, VERDE, PERIODO, GENERAR_GRAFICOS, EMAIL_TEST
 from utils.file_utils import reset_folder
 from utils.text_utils import truncar, texto_coloreado, es_falta
 from utils.time_utils import convertir_horas
@@ -15,7 +15,146 @@ from services.email_service import enviar_email
 from utils.metrics_utils import calcular_kpis, calcular_estado, calcular_color, analizar_anomalias, generar_comentario
 from services.chart_service import grafico_barras, grafico_histograma, grafico_semana, grafico_cumplimiento, grafico_linea, grafico_semana_pro, grafico_boxplot, grafico_cumplimiento_pro, grafico_semanal
 
-def procesar_agente(agente, grupo, resumen):
+from config_runtime import cargar_config, guardar_config
+
+
+def mostrar_menu():
+  print("\n===== SISTEMA DE REPORTES =====")
+  print("1 - Configurar aplicación")
+  print("2 - Generar reportes")
+  print("3 - Enviar emails")
+  print("0 - Salir")
+
+  opcion = input("Seleccioná una opción: ")
+  return opcion
+
+def generar_reportes():
+  reset_folder(PATH_OUTPUTS)
+
+  df = preparar_datos()
+  resumen = df.groupby('Agente')['Trabajó'].sum()
+
+  for agente, grupo in df.groupby('Agente'):
+    try:
+      context, email, nombre, graficos = procesar_agente(agente, grupo, resumen)
+
+      ruta_pdf = os.path.join(PATH_OUTPUTS, f"RESUMEN_{nombre}.pdf")
+
+      generar_pdf(context, ruta_pdf, *graficos)
+
+    except Exception as e:
+      logging.error(f"ERROR - {agente}", exc_info=True)
+      print(traceback.format_exc())
+
+def generar_reportes(config):
+  reset_folder(PATH_OUTPUTS)
+
+  registros = []
+
+  df = preparar_datos()
+  resumen = df.groupby('Agente')['Trabajó'].sum()
+
+  for agente, grupo in df.groupby('Agente'):
+    try:
+      context, email, nombre, graficos = procesar_agente(
+        agente, grupo, resumen, config
+      )
+      
+      archivo = f"RESUMEN_{nombre}.pdf"
+      ruta_pdf = os.path.join(PATH_OUTPUTS, archivo)
+
+      if config['generar_graficos']:
+        generar_pdf(context, ruta_pdf, *graficos)
+      else:
+        generar_pdf(context, ruta_pdf)
+      
+      registros.append({
+        "nombre": nombre,
+        "email": email,
+        "archivo": archivo,
+        "enviado": False,
+        "fecha_envio": None
+      })
+
+    except Exception as e:
+      logging.error(f"ERROR - {agente}", exc_info=True)
+    
+    df_envios = pd.DataFrame(registros)
+    df_envios.to_csv(os.path.join(PATH_OUTPUTS, "envios.csv"), index=False)
+
+def enviar_emails(config):
+  path_envios = os.path.join(PATH_OUTPUTS, "envios.csv")
+
+  if not os.path.exists(path_envios):
+    print("⚠️ No existe envios.csv. Generando reportes primero...")
+    generar_reportes(config)
+
+  df_envios = pd.read_csv(path_envios)
+
+  for i, row in df_envios.iterrows():
+    if row['enviado']:
+      continue
+
+    try:
+      ruta = os.path.join(PATH_OUTPUTS, row['archivo'])
+
+      destinatario = (
+        EMAIL_TEST if config['test_mode'] else row['email']
+      )
+
+      if pd.isna(destinatario):
+        logging.warning(f"Sin email - {row['nombre']}")
+        continue
+
+      enviar_email(destinatario, ruta, row['nombre'], config['periodo'])
+
+      df_envios.at[i, 'enviado'] = True
+      df_envios.at[i, 'fecha_envio'] = datetime.now()
+      logging.info(f"OK - {destinatario}")
+
+    except Exception as e:
+      logging.error(f"ERROR EMAIL - {row['nombre']}", exc_info=True)
+
+  # ✅ actualizar archivo
+  df_envios.to_csv(path_envios, index=False)
+
+def configurar():
+  config = cargar_config()
+
+  print("\n--- CONFIGURACIÓN ---")
+
+  test = input(f"Modo TEST? (s/n) [{config['test_mode']}]: ").lower()
+  if test:
+    config['test_mode'] = test == 's'
+
+  graficos = input(f"Generar gráficos? (s/n) [{config['generar_graficos']}]: ").lower()
+  if graficos:
+    config['generar_graficos'] = graficos == 's'
+
+  enviar = input(f"Enviar emails? (s/n) [{config['enviar_mails']}]: ").lower()
+  if enviar:
+    config['enviar_mails'] = enviar == 's'
+
+  mes = input("Mes (ej: 04): ")
+  anio = input("Año (ej: 2024): ")
+
+  meses = {
+    "01": "enero", "02": "febrero", "03": "marzo",
+    "04": "abril", "05": "mayo", "06": "junio",
+    "07": "julio", "08": "agosto", "09": "septiembre",
+    "10": "octubre", "11": "noviembre", "12": "diciembre"
+  }
+
+  if mes and anio and mes in meses:
+    config['periodo'] = f"{meses[mes]}_{anio}"
+    print(f"Periodo actualizado: {config['periodo']}")
+
+  guardar_config(config)
+
+  return config
+
+
+def procesar_agente(agente, grupo, resumen, config):
   first = grupo.iloc[0]
   nombre = first['Nombre']
   email = first['Email']
@@ -33,7 +172,7 @@ def procesar_agente(agente, grupo, resumen):
   anomalias = analizar_anomalias(grupo)
   comentario = construir_comentario(diff, anomalias)
 
-  graficos = generar_graficos(grupo, kpis)
+  graficos = generar_graficos(grupo, kpis) if config['generar_graficos'] else None
 
   context = construir_contexto(
     nombre, total, horas_min, diff,
@@ -70,40 +209,6 @@ def construir_comentario(diff, anomalias):
 
   return comentario
 
-def construir_contexto(nombre, total, horas_min, diff, kpis, estado, color, anomalias, comentario, filas):
-  
-
-  return {
-    'fecha': datetime.datetime.now().strftime("%d/%m/%Y"),
-    'periodo': PERIODO,
-    'nombre_empleado': nombre,
-
-    'horas_trabajadas': texto_coloreado(convertir_horas(total), color),
-    'horas_minimas': convertir_horas(horas_min),
-    'diferencia': texto_coloreado(convertir_horas(diff), color),
-
-    'faltas_registro': anomalias['faltas_registro'],
-
-    'estado': estado,
-    'color': color,
-
-    'cumplimiento': f"{kpis['cumplimiento_pct'] * 100:.0f}%",
-    'dias_trabajados': kpis['dias_trabajados'],
-    'promedio': convertir_horas(kpis['promedio']),
-    'max_dia': convertir_horas(kpis['max_dia']),
-    'min_dia': convertir_horas(kpis['min_dia']),
-
-    'dias_bajos': anomalias['dias_bajos'],
-    'dias_altos': anomalias['dias_altos'],
-    'dias_cero': anomalias['dias_cero'],
-
-    'comentario': comentario,
-
-    'horas_trabajadas_list': filas
-  }
-
-
-
 logging.basicConfig(
   filename='logs/envio.log',
   level=logging.INFO,
@@ -111,9 +216,6 @@ logging.basicConfig(
 )
 
 def generar_graficos(grupo, kpis):
-  if not GENERAR_GRAFICOS:
-    return None, None, None, None
-
   return (
     grafico_linea(grupo),
     grafico_semanal(grupo),
@@ -152,23 +254,25 @@ def construir_contexto(nombre, total, horas_min, diff, kpis, estado, color, anom
     'horas_trabajadas_list': filas
   }
 
+from config_runtime import cargar_config
+
 def main():
-  reset_folder(PATH_OUTPUTS)
+  config = cargar_config()
 
-  df = preparar_datos()
-  resumen = df.groupby('Agente')['Trabajó'].sum()
+  while True:
+    opcion = mostrar_menu()
 
-  for agente, grupo in df.groupby('Agente'):
-    try:
-      context, email, nombre, graficos = procesar_agente(agente, grupo, resumen)
+    if opcion == "1":
+      config = configurar()
 
-      ruta_pdf = os.path.join(PATH_OUTPUTS, f"RESUMEN_{nombre}.pdf")
+    elif opcion == "2":
+      generar_reportes(config)
 
-      generar_pdf(context, ruta_pdf, *graficos)
+    elif opcion == "3":
+      enviar_emails(config)
 
-    except Exception as e:
-      logging.error(f"ERROR - {agente}", exc_info=True)
-      print(traceback.format_exc())
+    elif opcion == "0":
+      break
 
 if __name__ == '__main__':
   main()

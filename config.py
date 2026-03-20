@@ -18,7 +18,7 @@ EMAIL_EMISOR = os.getenv("EMAIL_EMISOR")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 TEST_MODE = True
-EMAIL_TEST = "diegofdg@gmail.com"
+EMAIL_TEST = os.getenv("EMAIL_TEST")
 GENERAR_GRAFICOS = False
 
 ROJO = '#FF0000'

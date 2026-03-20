@@ -1,0 +1,6 @@
+{
+  "test_mode": true,
+  "generar_graficos": false,
+  "enviar_mails": false,
+  "periodo": "abril_2024"
+}
