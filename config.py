@@ -20,5 +20,5 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 TEST_MODE = True
 EMAIL_TEST = "diegofdg@gmail.com"
 
-ROJO = 'ec7c7b'
-VERDE = '48bf91'
+ROJO = '#FF0000'
+VERDE = '#008000'
