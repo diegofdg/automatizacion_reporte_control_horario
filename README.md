@@ -2,4 +2,4 @@
 
 Para instalar las dependencias ejecutar en una terminal: 
 
-<code>pip install -r requeriments.txt</code>
+<code>pip install -r requirements.txt</code>

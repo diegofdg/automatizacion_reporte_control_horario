@@ -1,0 +1,385 @@
+Public mesReporte As Integer
+Public anioReporte As Integer
+
+Sub ProcesarReporte()
+
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+
+    Macro1_Inicio
+    Macro2_EliminarFilasDuplicadas
+    Macro3_AgregarNombres
+    Macro4_AgregarHorasTrabajadas
+    Macro5_DandoElFormatoFinal
+    Macro6_AgregandoFecha
+    Macro7_ExportarCSV
+
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True
+
+    MsgBox "Reporte procesado correctamente"
+
+End Sub
+
+
+Sub Macro1_Inicio()
+    'Esta Macro eliminan las primeras filas y el logo de la empresa
+        
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    Dim celda As Range
+    
+    Set celda = ws.Range("A2")
+    
+    If celda.Value <> "Sistema de control horario" Then Exit Sub
+    
+    'Obtener fecha desde B10
+    fechaReporte = ws.Range("B10").Value
+    
+    'Guardar mes y año en variables globales
+    mesReporte = Month(fechaReporte)
+    anioReporte = Year(fechaReporte)
+    
+    'Eliminar filas iniciales
+    ws.Rows("1:21").Delete
+    
+    'Eliminar logo si existe
+    On Error Resume Next
+    ws.Shapes("Picture 1").Delete
+    On Error GoTo 0
+    
+    'Insertar columna A
+    ws.Columns("A").Insert CopyOrigin:=xlFormatFromLeftOrAbove
+    
+    'Posicionar cursor en A1
+    ws.Range("A1").Select
+End Sub
+
+Sub Macro2_EliminarFilasDuplicadas()
+'
+' Esta Macro elimina las filas de los agentes que por algun error del sistema salen duplicados
+'
+    Dim ws As Worksheet
+    Dim celdaDia As Range
+    Dim celdaResumen As Range
+    
+    Set ws = ActiveSheet
+
+    
+    
+    Application.ScreenUpdating = False
+    
+    For i = 1 To 5
+    
+        'Buscar el último "Dia" en la columna B
+        Set celdaDia = ws.Range("B4").End(xlDown)
+
+        If celdaDia.Value <> "Dia" Then Exit Sub
+
+        'Buscar "Resumen Año:" hacia abajo desde esa celda
+        Set celdaResumen = ws.Columns("B").Find( _
+            What:="Resumen Año:", _
+            After:=celdaDia, _
+            LookIn:=xlValues, _
+            LookAt:=xlPart, _
+            SearchDirection:=xlNext)
+
+        If celdaResumen Is Nothing Then Exit Sub
+        
+        'Eliminar la fila 7 posiciones arriba de celdaDia
+        ws.Rows(celdaDia.Row - 7).Delete
+
+        'Eliminar filas entre ambas
+        ws.Rows(celdaDia.Row - 2 & ":" & celdaResumen.Row - 1).Delete
+        
+        'Posicionar cursor en B1
+        ws.Range("B1").Select
+    
+    Next i
+    
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+Sub Macro3_AgregarNombres()
+'
+' Esta Macro busca el nombre de los agentes y los incorpora en cada una de las filas de sus registros
+' Además elimina las filas de los títulos y de los resumenes finales
+'
+
+    Dim ws As Worksheet
+    Dim i As Long
+    Dim lastRow As Long
+    Dim filaDia As Long
+    Dim filaResumen As Long
+    Dim filaAgente As Long
+    Dim nombreAgente As String
+    Dim textoAgente As String
+    
+    Set ws = ActiveSheet
+    
+    Application.ScreenUpdating = False
+    
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    
+    i = 1
+    
+    Do While i <= lastRow
+    
+        'Detectar inicio del bloque
+        If ws.Cells(i, "B").Value = "Dia" Then
+        
+            filaDia = i
+            
+            'Buscar hacia arriba la fila del agente
+            filaAgente = filaDia
+            
+            Do While filaAgente > 1
+            
+                If InStr(ws.Cells(filaAgente, "B").Value, "Agente") > 0 Then Exit Do
+                
+                filaAgente = filaAgente - 1
+                
+            Loop
+            
+            'Texto completo del agente
+            textoAgente = ws.Cells(filaAgente, "B").Value
+            
+            'Extraer nombre quitando "Agente"
+            nombreAgente = Replace(textoAgente, "Agente", "")
+            nombreAgente = Trim(nombreAgente)
+            
+            'Buscar resumen hacia abajo
+            filaResumen = filaDia
+            
+            Do While filaResumen <= lastRow
+            
+                If InStr(ws.Cells(filaResumen, "B").Value, "Resumen Agente") > 0 Then Exit Do
+                
+                filaResumen = filaResumen + 1
+                
+            Loop
+            
+            'Escribir nombre en columna A
+            ws.Range(ws.Cells(filaDia + 1, "A"), _
+                     ws.Cells(filaResumen - 1, "A")).Value = nombreAgente
+            
+            'Eliminar resumen
+            ws.Rows(filaResumen - 5).Resize(6).Delete
+            
+            'Eliminar encabezado
+            ws.Rows(filaAgente).Resize(filaDia - filaAgente + 1).Delete
+            
+            'Actualizar última fila
+            lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+            
+            'Reiniciar posición
+            i = filaAgente
+            
+        End If
+        
+        i = i + 1
+        
+    Loop
+    
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+
+Sub Macro4_AgregarHorasTrabajadas()
+'
+' Esta Macro primero separa el nombre del legado del agente en dos columnas, luego reemplaza las horas trabajadas utilizando la resta
+' entre la hora de entrada y la hora de salida
+'
+
+    Dim ws As Worksheet
+    Dim lastRow As Long
+
+    Set ws = ActiveSheet
+
+    Application.ScreenUpdating = False
+
+    'última fila con datos
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    'Insertar columna B
+    ws.Columns("B").Insert
+
+    'Separar legado y nombre
+    ws.Range("A1:A" & lastRow).TextToColumns _
+        Destination:=ws.Range("A1"), _
+        DataType:=xlDelimited, _
+        Other:=True, _
+        OtherChar:="-"
+
+    'Insertar columna horas trabajadas
+    ws.Columns("G").Insert
+    
+    'Completar horas vacías en Entrada
+    On Error Resume Next
+    ws.Range("D1:D" & lastRow).SpecialCells(xlCellTypeBlanks).Value = 0
+
+    'Completar horas vacías en Salida
+    ws.Range("E1:E" & lastRow).SpecialCells(xlCellTypeBlanks).Value = 0
+    On Error GoTo 0
+
+    'Formato de duración
+    ws.Range("D1:E" & lastRow).NumberFormat = "[h]:mm:ss"
+
+    'Calcular horas trabajadas
+    ws.Range("G1:G" & lastRow).FormulaR1C1 = _
+        "=IF(RC[-3]>RC[-2],0,RC[-2]-RC[-3])"
+
+    'Formato de tiempo
+    ws.Range("G1:G" & lastRow).NumberFormat = "[h]:mm:ss"
+
+    'Convertir fórmula a valor
+    ws.Range("G1:G" & lastRow).Value = ws.Range("G1:G" & lastRow).Value
+
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+Sub Macro5_DandoElFormatoFinal()
+'
+' Esta ultima Macro agrega los títulos de las columnas, cambia el formato de la letra eliminando los bordes de las celdas
+' y elimina las columnas sobrantes'
+'
+
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim detalle As Range
+    
+    Set ws = ActiveSheet
+        
+    Application.ScreenUpdating = False
+    
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    'Insertar encabezados
+    ws.Rows(1).Insert
+    
+    ws.Range("A1:G1").Value = Array("Agente", "Legajo", "Día", "Entrada", "Salida", "Detalle", "Trabajó")
+    
+    'Eliminar columnas sobrantes
+    ws.Columns("H:M").Delete
+    
+    'Formato
+    With ws.Range("A:G")
+        .Font.Name = "Arial"
+        .Font.Size = 10
+        .Borders.LineStyle = xlNone
+        .Interior.Pattern = xlNone
+        .RowHeight = 12
+    End With
+    
+    ws.Columns("A:G").AutoFit
+    
+    'Limpiar espacios en Detalle y corregir fichadas
+    Dim c As Range
+
+    For Each detalle In ws.Range("F2:F" & lastRow)
+    
+        detalle.Value = Trim(detalle.Value)
+
+        If detalle.Value = "FICHADA" Or detalle.Value = "FICHADA MANUAL" Then
+            If detalle.Offset(0, 1).Value = 0 Then
+                detalle.Value = "FALTA REGISTRO DE ENTRADA O SALIDA"
+            End If
+        End If
+
+    Next detalle
+    
+    'Alinear columna F a la izquierda
+    ws.Columns("F").HorizontalAlignment = xlLeft
+    
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+Sub Macro6_AgregandoFecha()
+'
+' Esta macro cambia la fecha que está definida solo como el número del día sin el mes y sin el año, agregandole el formato "dd/mm/aaaa"
+' La fecha actual debe ingresarse teniendo en cuenta que el ejemplo tiene mes = 04 y año = 2024
+'
+
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim mes As Integer
+    Dim anio As Integer
+    Dim c As Range
+    Dim dia As Integer
+    
+    Set ws = ActiveSheet
+    
+    Application.ScreenUpdating = False
+    
+    'Pedir mes y año
+    mes = mesReporte
+    anio = anioReporte
+    
+    'Última fila
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+    
+    'Crear fecha completa
+    For Each c In ws.Range("C2:C" & lastRow)
+    
+        If IsNumeric(c.Value) Then
+            dia = CLng(c.Value)
+            c.Value = DateSerial(anio, mes, dia)
+        End If
+        
+    Next c
+    
+    'Formato fecha
+    ws.Range("C2:C" & lastRow).NumberFormat = "dd/mm/yyyy"
+    
+    'Eliminar espacios en nombres
+    For Each c In ws.Range("A2:A" & lastRow)
+        c.Value = Trim(c.Value)
+    Next c
+    
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+
+Sub Macro7_ExportarCSV()
+
+    Dim ws As Worksheet
+    Dim ruta As String
+    Dim nombreArchivo As String
+    
+    Set ws = ActiveSheet
+    
+    'Ruta donde se guardará el archivo
+    ruta = ThisWorkbook.Path & "\"
+    
+    'Nombre dinámico del archivo
+    nombreArchivo = "reporte_asistencias_" & MonthName(mesReporte) & "_" & anioReporte & ".csv"
+    
+    Application.DisplayAlerts = False
+    
+    'Copiar hoja a un nuevo libro
+    ws.Copy
+    
+    'Guardar como CSV
+    ActiveWorkbook.SaveAs _
+        Filename:=ruta & LCase(nombreArchivo), _
+        FileFormat:=xlCSVUTF8, _
+        CreateBackup:=False
+    
+    ActiveWorkbook.Close False
+    
+    Application.DisplayAlerts = True
+
+End Sub
+
+
+

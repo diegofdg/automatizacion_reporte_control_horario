@@ -1,0 +1,11 @@
+﻿Agente,Legajo,Email,Controla,Horas minimas
+"CIFUENTES, Micaela",1,micaela.cifuentes@correo.com,False,100:00:00
+"ESPINOSA, Maria",2,maria.espinosa@correo.com,True,20:00:00
+"FLORES, Lorena",3,lorena.flores@correo.com,False,80:00:00
+"MARTINEZ, Ricardo",4,ricardo.martinez@correo.com,False,40:00:00
+"MIRANDA, Lucas",5,lucas.miranda@correo.com,False,40:00:00
+"MORALES, Gerardo",6,gerardo.morales@correo.com,False,100:00:00
+"SANCHEZ, Elisa",7,elisa.sanchez@correo.com,False,60:00:00
+"TORRES, Mario",8,mario.torres@correo.com,False,20:00:00
+"VALDES, Marcelo",9,marcelo.valdes@correo.com,False,20:00:00
+"VELASQUEZ, Salvador",10,salvador.velasquez@correo.com,False,20:00:00
