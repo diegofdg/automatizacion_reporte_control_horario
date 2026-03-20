@@ -1,15 +1,27 @@
 import os
 import ssl
 import smtplib
+import logging
+
 from email.message import EmailMessage
-from config import EMAIL_EMISOR, EMAIL_PASSWORD, TEST_MODE, EMAIL_TEST
+from config import EMAIL_EMISOR, EMAIL_PASSWORD, EMAIL_TEST
 
-def enviar_email(destinatario, archivo, nombre, periodo):
 
-    if TEST_MODE:
-        destinatario = EMAIL_TEST
+# =========================
+# 🧰 HELPERS
+# =========================
 
+def validar_email(email):
+    return email and isinstance(email, str) and "@" in email
+
+
+def validar_archivo(path):
+    return path and os.path.exists(path)
+
+
+def crear_mensaje(destinatario, archivo, nombre, periodo):
     msg = EmailMessage()
+
     msg['From'] = EMAIL_EMISOR
     msg['To'] = destinatario
     msg['Subject'] = f"Reporte de horas - {periodo}"
@@ -30,8 +42,53 @@ Saludos.
             filename=os.path.basename(archivo)
         )
 
-    context = ssl.create_default_context()
+    return msg
 
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as smtp:
-        smtp.login(EMAIL_EMISOR, EMAIL_PASSWORD)
-        smtp.send_message(msg)
+
+# =========================
+# 📧 ENVIO
+# =========================
+
+def enviar_email(destinatario, archivo, nombre, periodo):
+
+    # =========================
+    # 🔐 VALIDACIONES
+    # =========================
+
+    if not EMAIL_EMISOR or not EMAIL_PASSWORD:
+        logging.error("Credenciales de email no configuradas")
+        return False
+
+    if not validar_email(destinatario):
+        logging.warning(f"Email inválido: {destinatario}")
+        return False
+
+    if not validar_archivo(archivo):
+        logging.error(f"Archivo no encontrado: {archivo}")
+        return False
+
+    destinatario_real = destinatario
+
+    # =========================
+    # 🧾 CREAR MENSAJE
+    # =========================
+
+    msg = crear_mensaje(destinatario, archivo, nombre, periodo)
+
+    # =========================
+    # 🚀 ENVIO
+    # =========================
+
+    try:
+        context = ssl.create_default_context()
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as smtp:
+            smtp.login(EMAIL_EMISOR, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+
+        logging.info(f"Email enviado a: {destinatario_real}")
+        return True
+
+    except Exception as e:
+        logging.error(f"Error enviando email a {destinatario_real}", exc_info=True)
+        return False

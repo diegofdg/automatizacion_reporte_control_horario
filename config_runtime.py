@@ -7,7 +7,8 @@ DEFAULT_CONFIG = {
   "test_mode": True,
   "generar_graficos": False,
   "enviar_mails": False,
-  "periodo": "abril_2024"
+  "periodo": "abril_2024",
+  "debug": False
 }
 
 def cargar_config():
