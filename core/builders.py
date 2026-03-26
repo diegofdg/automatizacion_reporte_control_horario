@@ -37,7 +37,7 @@ def construir_contexto(datos, kpis, estado, color, anomalias, comentario, filas,
 
   return {
     'fecha': datetime.now().strftime("%d/%m/%Y"),
-    'periodo': config['periodo'],
+    'periodo': config['periodo'].replace("_", " ").upper(),
     'nombre_empleado': datos["nombre"],
 
     'horas_trabajadas': texto_coloreado(convertir_horas(datos["total"]), color),

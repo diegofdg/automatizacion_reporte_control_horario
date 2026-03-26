@@ -3,5 +3,5 @@
   "generar_graficos": true,
   "enviar_mails": true,
   "periodo": "abril_2024",
-  "debug": true
+  "debug": false
 }
